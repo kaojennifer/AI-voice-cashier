@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NYC Coffee Shop - Voice Cashier</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white min-h-screen">
+    <div class="max-w-4xl mx-auto p-8">
+        <header class="text-center mb-12">
+            <h1 class="text-5xl font-bold mb-2">☕ Joe's Coffee</h1>
+            <p class="text-gray-400">Fast. Friendly. NYC Style.</p>
+        </header>
+
+        <div class="bg-gray-800 rounded-lg p-8 mb-8">
+            <h2 class="text-2xl font-bold mb-4">Place Your Order</h2>
+            
+            <input 
+                type="text" 
+                id="customerName" 
+                placeholder="Your name (optional)"
+                class="w-full p-3 mb-4 bg-gray-700 rounded-lg"
+            />
+
+            <div class="flex gap-4 mb-6">
+                <button 
+                    id="voiceBtn"
+                    class="flex-1 bg-blue-600 hover:bg-blue-700 py-4 px-6 rounded-lg font-bold text-lg transition"
+                >
+                    🎤 Voice Order
+                </button>
+                <button 
+                    id="textBtn"
+                    class="flex-1 bg-green-600 hover:bg-green-700 py-4 px-6 rounded-lg font-bold text-lg transition"
+                >
+                    ⌨️ Type Order
+                </button>
+            </div>
+
+            <textarea 
+                id="orderText" 
+                placeholder="Or type your order here..."
+                class="w-full p-3 bg-gray-700 rounded-lg h-24 hidden"
+            ></textarea>
+
+            <div id="response" class="mt-6 p-4 bg-gray-700 rounded-lg hidden"></div>
+        </div>
+
+        <div class="bg-gray-800 rounded-lg p-8">
+            <h2 class="text-2xl font-bold mb-4">Recent Orders</h2>
+            <div id="orderHistory" class="space-y-3"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = window.location.origin;
+        let recognition;
+
+        // Initialize speech recognition
+        if ('webkitSpeechRecognition' in window) {
+            recognition = new webkitSpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+
+            recognition.onresult = async (event) => {
+                const transcript = event.results[0][0].transcript;
+                await processOrder(transcript);
+            };
+
+            recognition.onerror = (event) => {
+                alert('Speech recognition error. Please try typing instead.');
+            };
+        }
+
+        document.getElementById('voiceBtn').addEventListener('click', () => {
+            if (recognition) {
+                recognition.start();
+                showResponse('🎤 Listening...');
+            } else {
+                alert('Voice input not supported. Please use the text option.');
+            }
+        });
+
+        document.getElementById('textBtn').addEventListener('click', () => {
+            const textarea = document.getElementById('orderText');
+            textarea.classList.toggle('hidden');
+            if (!textarea.classList.contains('hidden')) {
+                textarea.focus();
+            }
+        });
+
+        document.getElementById('orderText').addEventListener('keypress', async (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                await processOrder(e.target.value);
+                e.target.value = '';
+            }
+        });
+
+        async function processOrder(text) {
+            showResponse('Processing...');
+            
+            try {
+                const response = await fetch(`${API_URL}/api/process-order`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        audioText: text,
+                        customerName: document.getElementById('customerName').value
+                    })
+                });
+
+                const data = await response.json();
+                showResponse(data.response);
+                loadOrders();
+            } catch (error) {
+                showResponse('❌ Error processing order. Please try again.');
+            }
+        }
+
+        function showResponse(message) {
+            const responseDiv = document.getElementById('response');
+            responseDiv.textContent = message;
+            responseDiv.classList.remove('hidden');
+        }
+
+        async function loadOrders() {
+            try {
+                const response = await fetch(`${API_URL}/api/orders`);
+                const orders = await response.json();
+                
+                const historyDiv = document.getElementById('orderHistory');
+                historyDiv.innerHTML = orders.slice(-10).reverse().map(order => `
+                    <div class="bg-gray-700 p-4 rounded">
+                        <div class="flex justify-between mb-2">
+                            <span class="font-bold">${order.customerName}</span>
+                            <span class="text-green-400">$${order.total.toFixed(2)}</span>
+                        </div>
+                        <div class="text-sm text-gray-400">
+                            ${order.items.map(i => `${i.size || ''} ${i.item}`).join(', ')}
+                        </div>
+                        <div class="text-xs text-gray-500 mt-1">
+                            ${new Date(order.timestamp).toLocaleString()}
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading orders:', error);
+            }
+        }
+
+        // Load orders on page load
+        loadOrders();
+        setInterval(loadOrders, 5000); // Refresh every 5 seconds
+    </script>
+</body>
+</html>
+
