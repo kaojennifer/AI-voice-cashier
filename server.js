@@ -99,6 +99,7 @@ app.post('/api/process-order', async (req, res) => {
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4",
+      response_format: { type: "json_object" }, 
       messages: [
         {
           role: "system",
