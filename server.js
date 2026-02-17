@@ -98,8 +98,7 @@ app.post('/api/process-order', async (req, res) => {
     const menu = await getCachedMenu();
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4",
-      response_format: { type: "json_object" }, 
+      model: "gpt-3.5-turbo", 
       messages: [
         {
           role: "system",
