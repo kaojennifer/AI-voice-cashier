@@ -3,106 +3,513 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NYC Coffee Shop - Voice Cashier</title>
+    <title>Corner Brew - AI Cashier System</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'DM Sans', sans-serif; }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        
+        /* Tab styling */
+        .tab-btn { 
+            background: #1f2937; 
+            color: #9ca3af; 
+            transition: all 0.2s;
+        }
+        .tab-btn:hover { background: #374151; color: #fff; }
+        .active-tab { 
+            background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%) !important; 
+            color: white !important;
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.4);
+        }
+
+        /* KDS Barista Styles */
+        .kds-screen { background: #0a0a0a; min-height: calc(100vh - 64px); }
+        .kds-header { background: #141414; border-bottom: 3px solid #1f1f1f; }
+        
+        .ticket {
+            background: #1a1a1a;
+            border: 2px solid #2a2a2a;
+            border-radius: 8px;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+        .ticket::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 6px;
+        }
+        .ticket-fresh::before { background: #22c55e; }
+        .ticket-warm::before { background: #f59e0b; }
+        .ticket-late::before { background: #ef4444; animation: pulse-red 1.5s infinite; }
+        
+        @keyframes pulse-red {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.7); }
+            50% { box-shadow: 0 0 0 12px rgba(239,68,68,0); }
+        }
+
+        .ticket-item {
+            font-size: 1.125rem;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            padding: 8px 0;
+            border-bottom: 1px dashed #2a2a2a;
+        }
+
+        .bump-btn {
+            background: #1f1f1f;
+            border: 2px solid #3a3a3a;
+            color: #fff;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            padding: 14px;
+            width: 100%;
+            border-radius: 6px;
+            transition: all 0.15s;
+            font-size: 0.9rem;
+        }
+        .bump-btn:hover { 
+            background: #22c55e; 
+            border-color: #22c55e; 
+            color: #000;
+            transform: translateY(-1px);
+        }
+
+        /* Customer interface animations */
+        .input-toggle {
+            background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.4);
+            border: 2px solid transparent;
+        }
+        
+        .input-toggle-inactive {
+            background: #374151;
+            color: #9ca3af;
+            border: 2px solid #4b5563;
+            box-shadow: none;
+        }
+        
+        .input-toggle-inactive:hover {
+            background: #4b5563;
+            color: #d1d5db;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .fade-in { animation: fadeIn 0.4s ease-out; }
+        
+        @keyframes pulse-listening {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.7); }
+            50% { box-shadow: 0 0 0 20px rgba(124, 58, 237, 0); }
+        }
+        
+        .listening-pulse { animation: pulse-listening 1.5s infinite; }
+    </style>
 </head>
-<body class="bg-gray-900 text-white min-h-screen">
-    <div class="max-w-4xl mx-auto p-8">
-        <header class="text-center mb-12">
-            <h1 class="text-5xl font-bold mb-2">☕ Joe's Coffee</h1>
-            <p class="text-gray-400">Fast. Friendly. NYC Style.</p>
+<body class="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white min-h-screen">
+
+    <!-- Navigation -->
+    <nav class="bg-gray-900/80 backdrop-blur-sm border-b border-gray-700/50 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="flex items-center justify-between py-4">
+                <div class="flex items-center gap-3">
+                    <div class="text-2xl">☕</div>
+                    <span class="text-xl font-bold tracking-tight">Corner Brew</span>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="switchTab('customer')" id="tab-customer"
+                        class="tab-btn active-tab px-6 py-2.5 rounded-lg font-semibold transition text-sm">
+                        Customer
+                    </button>
+                    <button onclick="switchTab('barista')" id="tab-barista"
+                        class="tab-btn px-6 py-2.5 rounded-lg font-semibold transition text-sm">
+                        Barista
+                    </button>
+                    <button onclick="switchTab('owner')" id="tab-owner"
+                        class="tab-btn px-6 py-2.5 rounded-lg font-semibold transition text-sm">
+                        Owner
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- CUSTOMER VIEW -->
+    <div id="view-customer" class="tab-view max-w-2xl mx-auto p-8">
+        <header class="text-center mb-12 fade-in">
+            <h1 class="text-5xl font-bold mb-3 bg-gradient-to-r from-violet-400 to-teal-400 bg-clip-text text-transparent">
+                Hi! What can I get for you today?
+            </h1>
+            <p class="text-gray-400 text-lg">Voice or type your order — I'll guide you through it.</p>
         </header>
 
-        <div class="bg-gray-800 rounded-lg p-8 mb-8">
-            <h2 class="text-2xl font-bold mb-4">Place Your Order</h2>
+        <div class="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-8 mb-8 border border-gray-700/50 shadow-2xl fade-in">
+            <input type="text" id="customerName" placeholder="Your name (optional)"
+                class="w-full p-4 mb-6 bg-gray-700/50 border border-gray-600/50 rounded-xl text-lg focus:outline-none focus:ring-2 focus:ring-violet-500 transition" />
             
-            <input 
-                type="text" 
-                id="customerName" 
-                placeholder="Your name (optional)"
-                class="w-full p-3 mb-4 bg-gray-700 rounded-lg"
-            />
-
-            <div class="flex gap-4 mb-6">
-                <button 
-                    id="voiceBtn"
-                    class="flex-1 bg-blue-600 hover:bg-blue-700 py-4 px-6 rounded-lg font-bold text-lg transition"
-                >
+            <div class="grid grid-cols-2 gap-4 mb-6">
+                <button id="voiceBtn"
+                    class="input-toggle-inactive py-6 px-6 rounded-xl font-bold text-lg transition transform hover:scale-105">
                     🎤 Voice Order
                 </button>
-                <button 
-                    id="textBtn"
-                    class="flex-1 bg-green-600 hover:bg-green-700 py-4 px-6 rounded-lg font-bold text-lg transition"
-                >
+                <button id="textBtn"
+                    class="input-toggle-inactive py-6 px-6 rounded-xl font-bold text-lg transition transform hover:scale-105">
                     ⌨️ Type Order
                 </button>
             </div>
 
-            <textarea 
-                id="orderText" 
-                placeholder="Or type your order here..."
-                class="w-full p-3 bg-gray-700 rounded-lg h-24 hidden"
-            ></textarea>
+            <!-- Voice Action Panel (hidden by default) -->
+            <div id="voicePanel" class="hidden mb-6">
+                <button id="tapToSpeakBtn"
+                    class="w-full bg-purple-500/30 hover:bg-purple-500/40 border-2 border-purple-400/50 py-6 px-6 rounded-xl font-bold text-xl transition shadow-lg flex items-center justify-center gap-3">
+                    <span class="text-2xl">🎤</span>
+                    <span>Tap to Speak</span>
+                </button>
+                <p class="text-center text-gray-400 text-sm mt-3 italic">Tap to start speaking...</p>
+            </div>
 
-            <div id="response" class="mt-6 p-4 bg-gray-700 rounded-lg hidden"></div>
+            <!-- Type Action Panel (hidden by default) -->
+            <div id="typePanel" class="hidden mb-6">
+                <div class="flex gap-3">
+                    <input type="text" id="orderTextInput" placeholder="Type your order here..."
+                        class="flex-1 p-4 bg-purple-500/10 border-2 border-purple-400/30 rounded-xl text-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-400/50 transition" />
+                    <button id="sendBtn"
+                        class="bg-purple-500/30 hover:bg-purple-500/40 border-2 border-purple-400/50 px-8 rounded-xl font-bold text-lg transition shadow-lg whitespace-nowrap">
+                        Send
+                    </button>
+                </div>
+            </div>
+            
+            <div id="response" class="mt-6 p-5 bg-gradient-to-br from-gray-700/50 to-gray-800/50 rounded-xl hidden text-lg border border-gray-600/30"></div>
         </div>
 
-        <div class="bg-gray-800 rounded-lg p-8">
-            <h2 class="text-2xl font-bold mb-4">Recent Orders</h2>
-            <div id="orderHistory" class="space-y-3"></div>
+        <div class="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-8 border border-gray-700/50 shadow-2xl fade-in">
+            <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
+                <span class="text-2xl">📋</span>
+                Recent Orders
+            </h2>
+            <div id="customerOrderHistory" class="space-y-3"></div>
+        </div>
+    </div>
+
+    <!-- BARISTA KDS VIEW -->
+    <div id="view-barista" class="tab-view hidden kds-screen">
+        <div class="kds-header px-8 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-8">
+                <span class="mono text-white font-bold text-xl tracking-wider">KITCHEN DISPLAY SYSTEM</span>
+            </div>
+            <div class="flex items-center gap-6">
+                <div class="bg-gray-900 px-6 py-3 rounded-lg border border-gray-800">
+                    <div id="kds-pending-count" class="mono text-3xl font-bold text-yellow-400">0</div>
+                    <div class="text-xs text-gray-500 uppercase tracking-widest mt-1">Pending</div>
+                </div>
+                <div class="bg-gray-900 px-6 py-3 rounded-lg border border-gray-800">
+                    <div id="kds-wait-time" class="mono text-3xl font-bold text-blue-400">0m</div>
+                    <div class="text-xs text-gray-500 uppercase tracking-widest mt-1">Wait Time</div>
+                </div>
+                <div class="bg-gray-900 px-6 py-3 rounded-lg border border-gray-800">
+                    <div id="kds-clock" class="mono text-3xl font-bold text-white">00:00</div>
+                    <div class="text-xs text-gray-500 uppercase tracking-widest mt-1">Time</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex gap-6 px-8 py-3 bg-black/50 border-b border-gray-900 text-sm mono">
+            <span class="text-green-400">● &lt;5 min</span>
+            <span class="text-yellow-400">● 5-10 min</span>
+            <span class="text-red-400">● &gt;10 min ⚠</span>
+        </div>
+
+        <div id="kdsTicketGrid" class="p-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <div class="col-span-full text-center mono text-gray-600 text-lg py-24 tracking-widest">
+                NO PENDING ORDERS
+            </div>
+        </div>
+    </div>
+
+    <!-- OWNER DASHBOARD -->
+    <div id="view-owner" class="tab-view hidden">
+        <!-- Professional white background layout -->
+        <div class="bg-white min-h-screen">
+            <!-- Header -->
+            <div class="bg-white border-b border-gray-200 px-8 py-6">
+                <div class="max-w-7xl mx-auto">
+                    <div class="flex items-center justify-between mb-2">
+                        <div>
+                            <p class="text-gray-600 text-sm mb-1">Good morning, Owner</p>
+                            <h1 class="text-3xl font-bold text-gray-900">Today's summary</h1>
+                        </div>
+                        <div class="text-sm text-gray-500" id="lastUpdated">Last updated just now</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="max-w-7xl mx-auto px-8 py-8">
+                <!-- KPI Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                    <div class="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition">
+                        <div class="text-gray-600 text-sm font-medium mb-2">Sales</div>
+                        <div class="flex items-baseline gap-3">
+                            <div id="totalRevenue" class="text-4xl font-bold text-gray-900">$0</div>
+                            <div id="revenueChange" class="text-sm font-medium text-green-600">↑ 2%</div>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition">
+                        <div class="text-gray-600 text-sm font-medium mb-2">Total Orders</div>
+                        <div class="flex items-baseline gap-3">
+                            <div id="totalOrders" class="text-4xl font-bold text-gray-900">0</div>
+                            <div id="ordersChange" class="text-sm font-medium text-green-600">↑ 4%</div>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition">
+                        <div class="text-gray-600 text-sm font-medium mb-2">Average Ticket Size</div>
+                        <div class="flex items-baseline gap-3">
+                            <div id="avgOrderValue" class="text-4xl font-bold text-gray-900">$0</div>
+                            <div id="avgChange" class="text-sm font-medium text-green-600">↑ 3%</div>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition">
+                        <div class="text-gray-600 text-sm font-medium mb-2">Peak Hour</div>
+                        <div class="flex items-baseline gap-3">
+                            <div id="peakHour" class="text-4xl font-bold text-gray-900">--</div>
+                            <div id="peakOrders" class="text-sm font-medium text-gray-600"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recommendations Section -->
+                <div class="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200 p-6 mb-8">
+                    <div class="flex items-start gap-4">
+                        <div class="bg-blue-600 rounded-lg p-3">
+                            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                            </svg>
+                        </div>
+                        <div class="flex-1">
+                            <h2 class="text-lg font-bold text-gray-900 mb-4">AI Recommendations</h2>
+                            <div id="recommendations" class="space-y-3">
+                                <div class="text-sm text-gray-600">Loading insights...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Section -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                    <div class="bg-white rounded-lg border border-gray-200 p-6">
+                        <h2 class="text-lg font-bold text-gray-900 mb-6">Top Items</h2>
+                        <canvas id="popularItemsChart"></canvas>
+                    </div>
+                    <div class="bg-white rounded-lg border border-gray-200 p-6">
+                        <h2 class="text-lg font-bold text-gray-900 mb-6">Hourly Orders</h2>
+                        <canvas id="busiestHoursChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Customization Trends & Week over Week -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                    <div class="bg-white rounded-lg border border-gray-200 p-6">
+                        <h2 class="text-lg font-bold text-gray-900 mb-6">Customization Trends</h2>
+                        <div id="customizationTrends" class="space-y-4"></div>
+                    </div>
+                    <div class="bg-white rounded-lg border border-gray-200 p-6">
+                        <h2 class="text-lg font-bold text-gray-900 mb-6">Week over Week</h2>
+                        <div id="weekOverWeek" class="space-y-4"></div>
+                    </div>
+                </div>
+
+                <!-- Orders Table -->
+                <div class="bg-white rounded-lg border border-gray-200">
+                    <div class="px-6 py-4 border-b border-gray-200">
+                        <h2 class="text-lg font-bold text-gray-900">Order History</h2>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full">
+                            <thead class="bg-gray-50 border-b border-gray-200">
+                                <tr>
+                                    <th class="text-left py-3 px-6 text-xs font-semibold text-gray-600 uppercase tracking-wider">Order #</th>
+                                    <th class="text-left py-3 px-6 text-xs font-semibold text-gray-600 uppercase tracking-wider">Customer</th>
+                                    <th class="text-left py-3 px-6 text-xs font-semibold text-gray-600 uppercase tracking-wider">Items</th>
+                                    <th class="text-left py-3 px-6 text-xs font-semibold text-gray-600 uppercase tracking-wider">Total</th>
+                                    <th class="text-left py-3 px-6 text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                                    <th class="text-left py-3 px-6 text-xs font-semibold text-gray-600 uppercase tracking-wider">Time</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ordersTable" class="divide-y divide-gray-200"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
         const API_URL = window.location.origin;
-        let recognition;
+        let recognition, popularChart, hoursChart;
+        let previousPendingCount = 0;
 
-        // Initialize speech recognition
+        // Clock
+        function updateClock() {
+            const now = new Date();
+            const h = String(now.getHours()).padStart(2,'0');
+            const m = String(now.getMinutes()).padStart(2,'0');
+            const el = document.getElementById('kds-clock');
+            if (el) el.textContent = `${h}:${m}`;
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // Tab switching
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-view').forEach(v => v.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active-tab'));
+            document.getElementById(`view-${tab}`).classList.remove('hidden');
+            document.getElementById(`tab-${tab}`).classList.add('active-tab');
+            if (tab === 'barista') loadBaristaOrders();
+            if (tab === 'owner') loadOwnerDashboard();
+        }
+
+        // CUSTOMER - Voice recognition
         if ('webkitSpeechRecognition' in window) {
             recognition = new webkitSpeechRecognition();
             recognition.continuous = false;
             recognition.interimResults = false;
-
-            recognition.onresult = async (event) => {
-                const transcript = event.results[0][0].transcript;
-                await processOrder(transcript);
+            recognition.onresult = async (e) => {
+                await processOrder(e.results[0][0].transcript);
+                // Reset UI after processing
+                resetInputUI();
             };
-
             recognition.onerror = (event) => {
-                alert('Speech recognition error. Please try typing instead.');
+                console.error('Speech recognition error:', event.error);
+                showResponse(`❌ Voice error (${event.error}). Try typing instead.`);
+                resetInputUI();
+            };
+            recognition.onend = () => {
+                const tapBtn = document.getElementById('tapToSpeakBtn');
+                if (tapBtn) {
+                    tapBtn.textContent = '🎤 Tap to Speak';
+                    tapBtn.classList.remove('listening-pulse');
+                }
             };
         }
 
+        function resetInputUI() {
+            document.getElementById('voiceBtn').classList.remove('input-toggle');
+            document.getElementById('voiceBtn').classList.add('input-toggle-inactive');
+            document.getElementById('textBtn').classList.remove('input-toggle');
+            document.getElementById('textBtn').classList.add('input-toggle-inactive');
+            document.getElementById('voicePanel').classList.add('hidden');
+            document.getElementById('typePanel').classList.add('hidden');
+            const tapBtn = document.getElementById('tapToSpeakBtn');
+            if (tapBtn) {
+                tapBtn.classList.remove('listening-pulse');
+            }
+        }
+
+        // Step 1: Click Voice Order button
         document.getElementById('voiceBtn').addEventListener('click', () => {
-            if (recognition) {
-                recognition.start();
-                showResponse('🎤 Listening...');
+            const voiceBtn = document.getElementById('voiceBtn');
+            const textBtn = document.getElementById('textBtn');
+            const voicePanel = document.getElementById('voicePanel');
+            const typePanel = document.getElementById('typePanel');
+
+            // Toggle voice mode
+            if (voiceBtn.classList.contains('input-toggle')) {
+                // Deactivate
+                voiceBtn.classList.remove('input-toggle');
+                voiceBtn.classList.add('input-toggle-inactive');
+                voicePanel.classList.add('hidden');
             } else {
-                alert('Voice input not supported. Please use the text option.');
+                // Activate voice mode
+                voiceBtn.classList.add('input-toggle');
+                voiceBtn.classList.remove('input-toggle-inactive');
+                voicePanel.classList.remove('hidden');
+                // Deactivate type mode
+                textBtn.classList.remove('input-toggle');
+                textBtn.classList.add('input-toggle-inactive');
+                typePanel.classList.add('hidden');
             }
         });
 
+        // Step 2: Click "Tap to Speak" button
+        document.getElementById('tapToSpeakBtn').addEventListener('click', () => {
+            if (recognition) {
+                try {
+                    recognition.start();
+                    const tapBtn = document.getElementById('tapToSpeakBtn');
+                    tapBtn.innerHTML = '<span class="text-2xl">🎤</span><span>Listening...</span>';
+                    tapBtn.classList.add('listening-pulse');
+                    showResponse('🎤 Listening... speak now!');
+                } catch (error) {
+                    console.error('Recognition start error:', error);
+                    showResponse('❌ Could not start voice. Try typing instead.');
+                }
+            } else {
+                showResponse('❌ Voice not supported in this browser. Please use Chrome or type your order.');
+            }
+        });
+
+        // Step 1: Click Type Order button
         document.getElementById('textBtn').addEventListener('click', () => {
-            const textarea = document.getElementById('orderText');
-            textarea.classList.toggle('hidden');
-            if (!textarea.classList.contains('hidden')) {
-                textarea.focus();
+            const voiceBtn = document.getElementById('voiceBtn');
+            const textBtn = document.getElementById('textBtn');
+            const voicePanel = document.getElementById('voicePanel');
+            const typePanel = document.getElementById('typePanel');
+
+            // Toggle type mode
+            if (textBtn.classList.contains('input-toggle')) {
+                // Deactivate
+                textBtn.classList.remove('input-toggle');
+                textBtn.classList.add('input-toggle-inactive');
+                typePanel.classList.add('hidden');
+            } else {
+                // Activate type mode
+                textBtn.classList.add('input-toggle');
+                textBtn.classList.remove('input-toggle-inactive');
+                typePanel.classList.remove('hidden');
+                document.getElementById('orderTextInput').focus();
+                // Deactivate voice mode
+                voiceBtn.classList.remove('input-toggle');
+                voiceBtn.classList.add('input-toggle-inactive');
+                voicePanel.classList.add('hidden');
             }
         });
 
-        document.getElementById('orderText').addEventListener('keypress', async (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
+        // Step 2: Click Send button or press Enter
+        document.getElementById('sendBtn').addEventListener('click', async () => {
+            const text = document.getElementById('orderTextInput').value;
+            if (text.trim()) {
+                await processOrder(text);
+                document.getElementById('orderTextInput').value = '';
+            }
+        });
+
+        document.getElementById('orderTextInput').addEventListener('keypress', async (e) => {
+            if (e.key === 'Enter') {
                 e.preventDefault();
-                await processOrder(e.target.value);
-                e.target.value = '';
+                const text = e.target.value;
+                if (text.trim()) {
+                    await processOrder(text);
+                    e.target.value = '';
+                }
             }
         });
 
         async function processOrder(text) {
-            showResponse('Processing...');
-            
+            if (!text.trim()) return;
+            showResponse('⏳ Processing your order...');
             try {
-                const response = await fetch(`${API_URL}/api/process-order`, {
+                const res = await fetch(`${API_URL}/api/process-order`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -110,50 +517,375 @@
                         customerName: document.getElementById('customerName').value
                     })
                 });
-
-                const data = await response.json();
-                showResponse(data.response);
-                loadOrders();
+                
+                if (!res.ok) {
+                    const errorText = await res.text();
+                    console.error('Server error:', res.status, errorText);
+                    showResponse(`❌ Server error (${res.status}). Check console for details.`);
+                    return;
+                }
+                
+                const data = await res.json();
+                showResponse(`✅ ${data.response}`);
+                loadCustomerOrders();
             } catch (error) {
-                showResponse('❌ Error processing order. Please try again.');
+                console.error('Order processing error:', error);
+                showResponse(`❌ Error: ${error.message}`);
             }
         }
 
-        function showResponse(message) {
-            const responseDiv = document.getElementById('response');
-            responseDiv.textContent = message;
-            responseDiv.classList.remove('hidden');
+        function showResponse(msg) {
+            const d = document.getElementById('response');
+            d.textContent = msg;
+            d.classList.remove('hidden');
         }
 
-        async function loadOrders() {
+        async function loadCustomerOrders() {
             try {
-                const response = await fetch(`${API_URL}/api/orders`);
-                const orders = await response.json();
-                
-                const historyDiv = document.getElementById('orderHistory');
-                historyDiv.innerHTML = orders.slice(-10).reverse().map(order => `
-                    <div class="bg-gray-700 p-4 rounded">
-                        <div class="flex justify-between mb-2">
-                            <span class="font-bold">${order.customerName}</span>
-                            <span class="text-green-400">$${order.total.toFixed(2)}</span>
+                const res = await fetch(`${API_URL}/api/orders`);
+                const orders = await res.json();
+                const div = document.getElementById('customerOrderHistory');
+                if (!orders.length) {
+                    div.innerHTML = '<p class="text-gray-500 text-center py-8">No orders yet</p>';
+                    return;
+                }
+                div.innerHTML = orders.slice(-10).reverse().map(o => `
+                    <div class="bg-gradient-to-br from-gray-700/50 to-gray-800/50 p-5 rounded-xl border border-gray-600/30">
+                        <div class="flex justify-between items-start mb-3">
+                            <div>
+                                <span class="font-bold text-lg">${o.customerName}</span>
+                                ${o.orderNumber ? `<span class="ml-3 mono text-yellow-400 text-sm">#${o.orderNumber}</span>` : ''}
+                            </div>
+                            <span class="text-teal-400 font-bold text-xl">$${(o.total || 0).toFixed(2)}</span>
                         </div>
-                        <div class="text-sm text-gray-400">
-                            ${order.items.map(i => `${i.size || ''} ${i.item}`).join(', ')}
-                        </div>
-                        <div class="text-xs text-gray-500 mt-1">
-                            ${new Date(order.timestamp).toLocaleString()}
+                        <div class="text-gray-300 mb-2">${o.items.map(i=>`${i.size||''} ${i.item}`).join(', ')}</div>
+                        <div class="flex justify-between items-center text-sm">
+                            <span class="text-gray-500 mono">${new Date(o.timestamp).toLocaleString()}</span>
+                            <span class="px-3 py-1 rounded-full text-xs font-bold ${o.status==='completed'?'bg-green-900/50 text-green-400 border border-green-700':'bg-yellow-900/50 text-yellow-400 border border-yellow-700'}">
+                                ${o.status}
+                            </span>
                         </div>
                     </div>
                 `).join('');
-            } catch (error) {
-                console.error('Error loading orders:', error);
+            } catch(e) { console.error(e); }
+        }
+
+        // BARISTA
+        async function loadBaristaOrders() {
+            try {
+                const res = await fetch(`${API_URL}/api/orders`);
+                const orders = await res.json();
+                console.log('Barista - Total orders:', orders.length);
+                console.log('Barista - Sample order:', orders[0]);
+                
+                const pending = orders.filter(o => o.status === 'pending');
+                console.log('Barista - Pending orders:', pending.length);
+                console.log('Barista - Pending sample:', pending[0]);
+                
+                if (pending.length > previousPendingCount && previousPendingCount !== 0) {
+                    const screen = document.getElementById('view-barista');
+                    screen.style.background = '#052e16';
+                    setTimeout(() => screen.style.background = '', 500);
+                }
+                previousPendingCount = pending.length;
+
+                document.getElementById('kds-pending-count').textContent = pending.length;
+                document.getElementById('kds-wait-time').textContent = `${Math.max(2, pending.length * 3)}m`;
+
+                const grid = document.getElementById('kdsTicketGrid');
+                if (!pending.length) {
+                    grid.innerHTML = `<div class="col-span-full text-center mono text-gray-600 text-lg py-24 tracking-widest">NO PENDING ORDERS</div>`;
+                    return;
+                }
+
+                grid.innerHTML = pending.map(order => {
+                    const idx = orders.indexOf(order);
+                    const mins = Math.floor((new Date() - new Date(order.timestamp)) / 60000);
+                    const urgency = mins < 5 ? 'fresh' : mins < 10 ? 'warm' : 'late';
+                    return `
+                    <div class="ticket ticket-${urgency} p-5">
+                        <div class="flex justify-between items-start mb-4 pt-2">
+                            <div>
+                                <div class="mono text-4xl font-black text-white">#${order.orderNumber || '??'}</div>
+                                <div class="text-sm text-gray-400 uppercase tracking-wider mt-1">${order.customerName}</div>
+                            </div>
+                            <div class="text-right">
+                                <div class="mono text-2xl font-bold ${urgency==='late'?'text-red-400':urgency==='warm'?'text-yellow-400':'text-green-400'}">
+                                    ${mins < 1 ? 'NEW' : `${mins}m`}
+                                </div>
+                                ${urgency === 'late' ? '<div class="text-red-400 text-xs mono font-bold mt-1">⚠ LATE</div>' : ''}
+                            </div>
+                        </div>
+                        <div class="mb-5 space-y-1">
+                            ${order.items.map(item => `
+                                <div class="ticket-item text-white uppercase">
+                                    ${item.size ? `<span class="text-gray-400">${item.size}</span> ` : ''}${item.item}
+                                </div>
+                            `).join('')}
+                        </div>
+                        <div class="flex justify-between items-center mb-4 text-sm">
+                            <span class="mono text-gray-500">${new Date(order.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+                            <span class="mono text-emerald-400 font-bold">$${(order.total || 0).toFixed(2)}</span>
+                        </div>
+                        <button class="bump-btn" onclick="markComplete(${idx})">Bump</button>
+                    </div>`;
+                }).join('');
+            } catch(e) { 
+                console.error('Barista load error:', e); 
             }
         }
 
-        // Load orders on page load
-        loadOrders();
-        setInterval(loadOrders, 5000); // Refresh every 5 seconds
+        async function markComplete(rowIndex) {
+            try {
+                await fetch(`${API_URL}/api/update-order-status`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ rowIndex, status: 'completed' })
+                });
+                loadBaristaOrders();
+            } catch(e) { console.error(e); }
+        }
+
+        // OWNER
+        async function loadOwnerDashboard() {
+            try {
+                const res = await fetch(`${API_URL}/api/orders`);
+                const orders = await res.json();
+                if (!orders.length) return;
+
+                const totalRevenue = orders.reduce((s, o) => s + (o.total || 0), 0);
+                document.getElementById('totalRevenue').textContent = `$${totalRevenue.toFixed(2)}`;
+                document.getElementById('totalOrders').textContent = orders.length;
+                document.getElementById('avgOrderValue').textContent = `$${(totalRevenue / orders.length).toFixed(2)}`;
+
+                // Peak Hour Analysis
+                const hourCounts = {};
+                orders.forEach(o => {
+                    const h = new Date(o.timestamp).getHours();
+                    hourCounts[h] = (hourCounts[h]||0) + 1;
+                });
+                const peakHourData = Object.entries(hourCounts).sort((a,b) => b[1] - a[1])[0];
+                if (peakHourData) {
+                    const hour = parseInt(peakHourData[0]);
+                    const count = peakHourData[1];
+                    document.getElementById('peakHour').textContent = `${hour % 12 || 12}${hour < 12 ? 'am' : 'pm'}`;
+                    document.getElementById('peakOrders').textContent = `${count} orders`;
+                }
+
+                // Customization Trends
+                const customizations = {};
+                orders.forEach(o => {
+                    o.items.forEach(item => {
+                        // Extract size as customization
+                        if (item.size) {
+                            const key = item.size.toLowerCase();
+                            customizations[key] = (customizations[key] || 0) + 1;
+                        }
+                    });
+                });
+                const topCustomizations = Object.entries(customizations).sort((a,b) => b[1] - a[1]).slice(0, 5);
+                const totalCustomizations = orders.reduce((sum, o) => sum + o.items.length, 0);
+                
+                document.getElementById('customizationTrends').innerHTML = topCustomizations.map(([name, count]) => {
+                    const percentage = ((count / totalCustomizations) * 100).toFixed(0);
+                    return `
+                        <div class="flex items-center justify-between">
+                            <div class="flex-1">
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="text-sm font-medium text-gray-900 capitalize">${name}</span>
+                                    <span class="text-sm font-medium text-gray-600">${percentage}%</span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-2">
+                                    <div class="bg-blue-600 h-2 rounded-full" style="width: ${percentage}%"></div>
+                                </div>
+                            </div>
+                        </div>`;
+                }).join('') || '<p class="text-sm text-gray-500">No customization data yet</p>';
+
+                // Week over Week (simulated with available data)
+                const today = new Date();
+                const lastWeekOrders = orders.filter(o => {
+                    const orderDate = new Date(o.timestamp);
+                    const daysAgo = (today - orderDate) / (1000 * 60 * 60 * 24);
+                    return daysAgo > 7;
+                });
+                const thisWeekOrders = orders.filter(o => {
+                    const orderDate = new Date(o.timestamp);
+                    const daysAgo = (today - orderDate) / (1000 * 60 * 60 * 24);
+                    return daysAgo <= 7;
+                });
+
+                const thisWeekRevenue = thisWeekOrders.reduce((s, o) => s + (o.total || 0), 0);
+                const lastWeekRevenue = lastWeekOrders.reduce((s, o) => s + (o.total || 0), 0);
+                const revenueChange = lastWeekRevenue > 0 ? (((thisWeekRevenue - lastWeekRevenue) / lastWeekRevenue) * 100).toFixed(1) : 0;
+                const ordersChange = lastWeekOrders.length > 0 ? (((thisWeekOrders.length - lastWeekOrders.length) / lastWeekOrders.length) * 100).toFixed(1) : 0;
+
+                document.getElementById('weekOverWeek').innerHTML = `
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <span class="text-sm font-medium text-gray-700">Revenue</span>
+                            <span class="text-sm font-bold ${revenueChange >= 0 ? 'text-green-600' : 'text-red-600'}">
+                                ${revenueChange >= 0 ? '↑' : '↓'} ${Math.abs(revenueChange)}%
+                            </span>
+                        </div>
+                        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <span class="text-sm font-medium text-gray-700">Orders</span>
+                            <span class="text-sm font-bold ${ordersChange >= 0 ? 'text-green-600' : 'text-red-600'}">
+                                ${ordersChange >= 0 ? '↑' : '↓'} ${Math.abs(ordersChange)}%
+                            </span>
+                        </div>
+                        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <span class="text-sm font-medium text-gray-700">This Week</span>
+                            <span class="text-sm font-bold text-gray-900">${thisWeekOrders.length} orders</span>
+                        </div>
+                        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <span class="text-sm font-medium text-gray-700">Last Week</span>
+                            <span class="text-sm font-bold text-gray-900">${lastWeekOrders.length} orders</span>
+                        </div>
+                    </div>
+                `;
+
+                // Top sellers
+                const itemCounts = {};
+                orders.forEach(o => o.items.forEach(item => {
+                    const n = `${item.size||''} ${item.item}`.trim();
+                    itemCounts[n] = (itemCounts[n] || 0) + 1;
+                }));
+                const sortedItems = Object.entries(itemCounts).sort((a,b)=>b[1]-a[1]).slice(0,5);
+                const topSeller = sortedItems[0];
+
+                // AI Recommendations
+                const recommendations = [];
+                
+                // Customization recommendation
+                if (topCustomizations.length > 0) {
+                    const topCustom = topCustomizations[0];
+                    const percentage = ((topCustom[1] / totalCustomizations) * 100).toFixed(0);
+                    recommendations.push(`<strong>Inventory Focus:</strong> ${percentage}% of orders request <strong>${topCustom[0]}</strong> size. Consider increasing stock for this option.`);
+                }
+
+                // Staffing recommendation
+                if (peakHourData) {
+                    const hour = parseInt(peakHourData[0]);
+                    const hourLabel = `${hour % 12 || 12}${hour < 12 ? 'am' : 'pm'}`;
+                    recommendations.push(`<strong>Staffing:</strong> Peak hour is <strong>${hourLabel}</strong> with ${peakHourData[1]} orders. Schedule additional staff during this time.`);
+                }
+
+                // Promotion recommendation
+                if (topSeller) {
+                    recommendations.push(`<strong>Promotions:</strong> <strong>${topSeller[0]}</strong> is your best seller (${topSeller[1]} orders). Consider featuring it in marketing campaigns.`);
+                }
+
+                // Week over week insight
+                if (revenueChange > 5) {
+                    recommendations.push(`<strong>Growth:</strong> Revenue up ${revenueChange}% vs last week. Maintain current operations and consider expanding popular items.`);
+                } else if (revenueChange < -5) {
+                    recommendations.push(`<strong>Alert:</strong> Revenue down ${Math.abs(revenueChange)}% vs last week. Review menu pricing and promotional strategies.`);
+                }
+
+                document.getElementById('recommendations').innerHTML = recommendations.length > 0 
+                    ? recommendations.map(r => `<div class="flex items-start gap-2"><span class="text-blue-600 mt-0.5">•</span><p class="text-sm text-gray-700">${r}</p></div>`).join('')
+                    : '<p class="text-sm text-gray-600">Not enough data yet for recommendations. Keep serving customers!</p>';
+
+                // Top sellers with clean blue styling
+
+                if (popularChart) popularChart.destroy();
+                popularChart = new Chart(document.getElementById('popularItemsChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: sortedItems.map(i=>i[0]),
+                        datasets: [{
+                            data: sortedItems.map(i=>i[1]),
+                            backgroundColor: '#3b82f6',
+                            borderRadius: 4,
+                            barThickness: 32
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            y: { 
+                                beginAtZero: true,
+                                ticks: { color:'#6b7280', font: { size: 11 } }, 
+                                grid: { color:'#e5e7eb', drawBorder: false },
+                                border: { display: false }
+                            },
+                            x: { 
+                                ticks: { color:'#374151', font: { size: 11, weight: '500' } }, 
+                                grid: { display: false },
+                                border: { display: false }
+                            }
+                        }
+                    }
+                });
+
+                // Hourly distribution with clean blue styling
+                const hours = Array.from({length:24}, (_,i)=>i);
+                const hourData = hours.map(h => hourCounts[h] || 0);
+
+                if (hoursChart) hoursChart.destroy();
+                hoursChart = new Chart(document.getElementById('busiestHoursChart'), {
+                    type: 'line',
+                    data: {
+                        labels: hours.map(h=> `${h%12||12}${h<12?'a':'p'}`),
+                        datasets: [{
+                            data: hourData,
+                            borderColor:'#3b82f6',
+                            backgroundColor:'rgba(59, 130, 246, 0.1)',
+                            fill:true,
+                            tension:0.4,
+                            borderWidth: 2,
+                            pointRadius: 3,
+                            pointBackgroundColor: '#3b82f6',
+                            pointBorderColor: '#fff',
+                            pointBorderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            y: { 
+                                beginAtZero: true,
+                                ticks: { color:'#6b7280', font: { size: 11 } }, 
+                                grid: { color:'#e5e7eb', drawBorder: false },
+                                border: { display: false }
+                            },
+                            x: { 
+                                ticks: { color:'#374151', font: { size: 11 }, maxRotation: 0 }, 
+                                grid: { display: false },
+                                border: { display: false }
+                            }
+                        }
+                    }
+                });
+
+                // Orders table with professional styling
+                document.getElementById('ordersTable').innerHTML = orders.slice(-20).reverse().map(o => `
+                    <tr class="hover:bg-gray-50 transition">
+                        <td class="py-4 px-6 text-sm font-medium text-gray-900">#${o.orderNumber||'N/A'}</td>
+                        <td class="py-4 px-6 text-sm text-gray-900">${o.customerName}</td>
+                        <td class="py-4 px-6 text-sm text-gray-600">${o.items.map(i=>`${i.size||''} ${i.item}`).join(', ')}</td>
+                        <td class="py-4 px-6 text-sm font-semibold text-gray-900">$${o.total.toFixed(2)}</td>
+                        <td class="py-4 px-6">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${o.status==='completed'?'bg-green-100 text-green-800':'bg-yellow-100 text-yellow-800'}">
+                                ${o.status}
+                            </span>
+                        </td>
+                        <td class="py-4 px-6 text-sm text-gray-500">${new Date(o.timestamp).toLocaleString()}</td>
+                    </tr>
+                `).join('');
+            } catch(e) { console.error(e); }
+        }
+
+        // Init
+        loadCustomerOrders();
+        setInterval(() => {
+            loadCustomerOrders();
+            if (!document.getElementById('view-barista').classList.contains('hidden')) loadBaristaOrders();
+            if (!document.getElementById('view-owner').classList.contains('hidden')) loadOwnerDashboard();
+        }, 5000);
     </script>
 </body>
 </html>
-

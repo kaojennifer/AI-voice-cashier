@@ -17,15 +17,15 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
+// Write credentials from environment variable if it exists
+if (process.env.GOOGLE_CREDENTIALS) {
+  fs.writeFileSync('./credentials.json', process.env.GOOGLE_CREDENTIALS);
+}
+
 // Initialize OpenAI
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
-
-// Write credentials from environment variable if it exists (for Railway deployment)
-if (process.env.GOOGLE_CREDENTIALS) {
-  fs.writeFileSync('./credentials.json', process.env.GOOGLE_CREDENTIALS);
-}
 
 // Initialize Google Sheets
 const auth = new google.auth.GoogleAuth({
@@ -35,39 +35,30 @@ const auth = new google.auth.GoogleAuth({
 
 const sheets = google.sheets({ version: 'v4', auth });
 
-// Menu spreadsheet ID
 const MENU_SHEET_ID = '1NQwSFYRUaiuJBveQsC0EqmBzRgLZx86uCvluOXxhkts';
 
-// Function to fetch menu from Google Sheets
+// Fetch menu from Google Sheets
 async function getMenu() {
   try {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: MENU_SHEET_ID,
-      range: 'Sheet1!A:C', // Assuming columns: Item, Size, Price
+      range: 'Sheet1!A:C',
     });
-
     const rows = response.data.values || [];
     const menu = {};
-
-    // Skip header row and build menu object
     for (let i = 1; i < rows.length; i++) {
       const [item, size, price] = rows[i];
       if (item && size && price) {
         const itemLower = item.toLowerCase().trim();
         const sizeLower = size.toLowerCase().trim();
         const priceNum = parseFloat(price.replace('$', ''));
-
-        if (!menu[itemLower]) {
-          menu[itemLower] = {};
-        }
+        if (!menu[itemLower]) menu[itemLower] = {};
         menu[itemLower][sizeLower] = priceNum;
       }
     }
-
     return menu;
   } catch (error) {
     console.error('Error fetching menu:', error);
-    // Fallback menu if Google Sheets fails
     return {
       "coffee": { "small": 2.50, "medium": 3.00, "large": 3.50 },
       "latte": { "small": 3.50, "medium": 4.00, "large": 4.50 },
@@ -77,10 +68,10 @@ async function getMenu() {
   }
 }
 
-// Cache menu and refresh every 5 minutes
+// Cache menu
 let cachedMenu = null;
 let lastMenuFetch = 0;
-const MENU_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const MENU_CACHE_DURATION = 5 * 60 * 1000;
 
 async function getCachedMenu() {
   const now = Date.now();
@@ -91,42 +82,71 @@ async function getCachedMenu() {
   return cachedMenu;
 }
 
-// Process order with OpenAI
+// Generate order number
+function generateOrderNumber() {
+  return Math.floor(100 + Math.random() * 900);
+}
+
+// Estimate wait time based on pending orders
+async function getWaitTime() {
+  try {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: process.env.GOOGLE_SHEET_ID,
+      range: 'Sheet1!A:F',
+    });
+    const rows = response.data.values || [];
+    const pendingOrders = rows.slice(1).filter(row => row[4] === 'pending').length;
+    return Math.max(2, pendingOrders * 3);
+  } catch (error) {
+    return 5;
+  }
+}
+
+// Process order
 app.post('/api/process-order', async (req, res) => {
   try {
     const { audioText, customerName } = req.body;
     const menu = await getCachedMenu();
+    const orderNumber = generateOrderNumber();
+    const waitTime = await getWaitTime();
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo", 
+      model: "gpt-3.5-turbo",
       messages: [
         {
           role: "system",
-          content: `You are a friendly NYC coffee shop cashier. Parse customer orders and return ONLY a JSON object with this exact format:
+          content: `You are a friendly NYC coffee shop cashier. Parse customer orders and return ONLY a valid JSON object with this exact format:
 {
   "items": [{"item": "latte", "size": "large", "price": 4.50}],
   "total": 4.50,
-  "response": "Got it! One large latte. That'll be $4.50"
+  "response": "Got it! One large latte. That'll be $4.50. Your order number is #${orderNumber}. Estimated wait: ${waitTime} minutes!"
 }
 
-Current menu with prices: ${JSON.stringify(menu)}
-
-Be conversational but efficient - this is a busy NYC shop. If the customer orders something not on the menu, politely let them know and suggest alternatives. If size is unclear, ask for clarification.`
+Current menu: ${JSON.stringify(menu)}
+CRITICAL: Return ONLY valid JSON. No text before or after. Put all conversation in the "response" field.`
         },
-        {
-          role: "user",
-          content: audioText
-        }
+        { role: "user", content: audioText }
       ],
-      temperature: 0.7,
+      temperature: 0.3,
     });
 
-    const orderData = JSON.parse(completion.choices[0].message.content);
-    
-    // Save to Google Sheets (orders database)
+    let orderData;
+    try {
+      orderData = JSON.parse(completion.choices[0].message.content);
+    } catch (parseError) {
+      const text = completion.choices[0].message.content;
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        orderData = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error('Could not parse OpenAI response as JSON');
+      }
+    }
+
+    // Save to Google Sheets
     await sheets.spreadsheets.values.append({
       spreadsheetId: process.env.GOOGLE_SHEET_ID,
-      range: 'Sheet1!A:E',
+      range: 'Sheet1!A:F',
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: [[
@@ -134,35 +154,35 @@ Be conversational but efficient - this is a busy NYC shop. If the customer order
           customerName || 'Guest',
           JSON.stringify(orderData.items),
           orderData.total,
-          'pending'
+          'pending',
+          orderNumber
         ]]
       }
     });
 
-    res.json(orderData);
+    res.json({ ...orderData, orderNumber, waitTime });
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'Failed to process order' });
   }
 });
 
-// Get order history
+// Get all orders
 app.get('/api/orders', async (req, res) => {
   try {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: process.env.GOOGLE_SHEET_ID,
-      range: 'Sheet1!A:E',
+      range: 'Sheet1!A:F',
     });
-
     const rows = response.data.values || [];
     const orders = rows.slice(1).map(row => ({
       timestamp: row[0],
       customerName: row[1],
       items: JSON.parse(row[2] || '[]'),
       total: parseFloat(row[3]),
-      status: row[4]
+      status: row[4] || 'pending',
+      orderNumber: row[5] || 'N/A'
     }));
-
     res.json(orders);
   } catch (error) {
     console.error('Error:', error);
@@ -170,13 +190,29 @@ app.get('/api/orders', async (req, res) => {
   }
 });
 
-// Get current menu (useful for displaying on frontend)
+// Update order status (for barista view)
+app.post('/api/update-order-status', async (req, res) => {
+  try {
+    const { rowIndex, status } = req.body;
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: process.env.GOOGLE_SHEET_ID,
+      range: `Sheet1!E${rowIndex + 2}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [[status]] }
+    });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'Failed to update order status' });
+  }
+});
+
+// Get menu
 app.get('/api/menu', async (req, res) => {
   try {
     const menu = await getCachedMenu();
     res.json(menu);
   } catch (error) {
-    console.error('Error:', error);
     res.status(500).json({ error: 'Failed to fetch menu' });
   }
 });
