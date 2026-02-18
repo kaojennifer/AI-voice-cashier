@@ -1,4 +1,4 @@
-# ☕ AI Voice Cashier - Joe's Coffee
+# ☕ AI Voice Cashier - Corner Brew
 
 An AI-powered voice cashier for a busy NYC coffee shop built with Node.js, OpenAI, and Google Sheets.
 
