@@ -29,10 +29,16 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
-// Initialize ElevenLabs
-const elevenlabs = new ElevenLabsClient({
-  apiKey: process.env.ELEVENLABS_API_KEY
-});
+// Initialize ElevenLabs (optional - only if API key is provided)
+let elevenlabs = null;
+if (process.env.ELEVENLABS_API_KEY) {
+  elevenlabs = new ElevenLabsClient({
+    apiKey: process.env.ELEVENLABS_API_KEY
+  });
+  console.log('ElevenLabs voice enabled');
+} else {
+  console.log('ElevenLabs API key not found - voice responses will be text-only');
+}
 
 // Initialize Google Sheets
 const auth = new google.auth.GoogleAuth({
@@ -217,7 +223,7 @@ Response: {"reply": "Perfect! Your total is $5.00. I'll have that ready for you 
     
     // Generate audio ONLY for voice mode with error handling
     let audioBuffer = null;
-    if (mode === 'voice') {
+    if (mode === 'voice' && elevenlabs) {
       try {
         const audioStream = await elevenlabs.textToSpeech.convert("iP95p4xoKVk53GoZ742B", {
           text: aiResponse.reply,
