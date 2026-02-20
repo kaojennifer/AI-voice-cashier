@@ -239,9 +239,7 @@
 
     <!-- OWNER DASHBOARD -->
     <div id="view-owner" class="tab-view hidden">
-        <!-- Professional white background layout -->
         <div class="bg-white min-h-screen">
-            <!-- Header -->
             <div class="bg-white border-b border-gray-200 px-8 py-6">
                 <div class="max-w-7xl mx-auto">
                     <div class="flex items-center justify-between mb-2">
@@ -255,27 +253,23 @@
             </div>
 
             <div class="max-w-7xl mx-auto px-8 py-8">
-                <!-- KPI Cards -->
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                     <div class="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition">
                         <div class="text-gray-600 text-sm font-medium mb-2">Sales</div>
                         <div class="flex items-baseline gap-3">
                             <div id="totalRevenue" class="text-4xl font-bold text-gray-900">$0</div>
-                            <div id="revenueChange" class="text-sm font-medium text-green-600">↑ 2%</div>
                         </div>
                     </div>
                     <div class="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition">
                         <div class="text-gray-600 text-sm font-medium mb-2">Total Orders</div>
                         <div class="flex items-baseline gap-3">
                             <div id="totalOrders" class="text-4xl font-bold text-gray-900">0</div>
-                            <div id="ordersChange" class="text-sm font-medium text-green-600">↑ 4%</div>
                         </div>
                     </div>
                     <div class="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition">
                         <div class="text-gray-600 text-sm font-medium mb-2">Average Ticket Size</div>
                         <div class="flex items-baseline gap-3">
                             <div id="avgOrderValue" class="text-4xl font-bold text-gray-900">$0</div>
-                            <div id="avgChange" class="text-sm font-medium text-green-600">↑ 3%</div>
                         </div>
                     </div>
                     <div class="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition">
@@ -287,24 +281,13 @@
                     </div>
                 </div>
 
-                <!-- Recommendations Section -->
                 <div class="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200 p-6 mb-8">
-                    <div class="flex items-start gap-4">
-                        <div class="bg-blue-600 rounded-lg p-3">
-                            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
-                            </svg>
-                        </div>
-                        <div class="flex-1">
-                            <h2 class="text-lg font-bold text-gray-900 mb-4">AI Recommendations</h2>
-                            <div id="recommendations" class="space-y-3">
-                                <div class="text-sm text-gray-600">Loading insights...</div>
-                            </div>
-                        </div>
+                    <h2 class="text-lg font-bold text-gray-900 mb-4">AI Recommendations</h2>
+                    <div id="recommendations" class="space-y-3">
+                        <div class="text-sm text-gray-600">Loading insights...</div>
                     </div>
                 </div>
 
-                <!-- Charts Section -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                     <div class="bg-white rounded-lg border border-gray-200 p-6">
                         <h2 class="text-lg font-bold text-gray-900 mb-6">Top Items</h2>
@@ -316,7 +299,6 @@
                     </div>
                 </div>
 
-                <!-- Customization Trends & Week over Week -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                     <div class="bg-white rounded-lg border border-gray-200 p-6">
                         <h2 class="text-lg font-bold text-gray-900 mb-6">Customization Trends</h2>
@@ -328,7 +310,6 @@
                     </div>
                 </div>
 
-                <!-- Orders Table -->
                 <div class="bg-white rounded-lg border border-gray-200">
                     <div class="px-6 py-4 border-b border-gray-200">
                         <h2 class="text-lg font-bold text-gray-900">Order History</h2>
@@ -358,6 +339,16 @@
         let recognition, popularChart, hoursChart;
         let previousPendingCount = 0;
 
+        // Conversation state for multi-turn
+        let currentSessionId = null;
+        let isConversationActive = false;
+        let conversationMode = null;
+        let audioContext = null;
+
+        function generateSessionId() {
+            return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        }
+
         // Clock
         function updateClock() {
             const now = new Date();
@@ -379,160 +370,250 @@
             if (tab === 'owner') loadOwnerDashboard();
         }
 
-        // CUSTOMER - Voice recognition
-        if ('webkitSpeechRecognition' in window) {
-            recognition = new webkitSpeechRecognition();
-            recognition.continuous = false;
-            recognition.interimResults = false;
-            recognition.onresult = async (e) => {
-                await processOrder(e.results[0][0].transcript);
-                // Reset UI after processing
-                resetInputUI();
-            };
-            recognition.onerror = (event) => {
-                console.error('Speech recognition error:', event.error);
-                showResponse(`❌ Voice error (${event.error}). Try typing instead.`);
-                resetInputUI();
-            };
-            recognition.onend = () => {
-                const tapBtn = document.getElementById('tapToSpeakBtn');
-                if (tapBtn) {
-                    tapBtn.textContent = '🎤 Tap to Speak';
-                    tapBtn.classList.remove('listening-pulse');
-                }
-            };
-        }
-
-        function resetInputUI() {
-            document.getElementById('voiceBtn').classList.remove('input-toggle');
-            document.getElementById('voiceBtn').classList.add('input-toggle-inactive');
-            document.getElementById('textBtn').classList.remove('input-toggle');
-            document.getElementById('textBtn').classList.add('input-toggle-inactive');
-            document.getElementById('voicePanel').classList.add('hidden');
-            document.getElementById('typePanel').classList.add('hidden');
-            const tapBtn = document.getElementById('tapToSpeakBtn');
-            if (tapBtn) {
-                tapBtn.classList.remove('listening-pulse');
+        // Start conversation
+        function startConversation(mode) {
+            currentSessionId = generateSessionId();
+            isConversationActive = true;
+            conversationMode = mode;
+            
+            if (mode === 'voice' && !audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            
+            const welcomeMsg = mode === 'voice' 
+                ? '🎤 Start speaking! I\'ll help you build your order.'
+                : '💬 Type your order! I\'ll ask questions to get it perfect.';
+            
+            showResponse(welcomeMsg);
+            
+            if (mode === 'voice') {
+                startListening();
             }
         }
 
-        // Step 1: Click Voice Order button
-        document.getElementById('voiceBtn').addEventListener('click', () => {
-            const voiceBtn = document.getElementById('voiceBtn');
-            const textBtn = document.getElementById('textBtn');
-            const voicePanel = document.getElementById('voicePanel');
-            const typePanel = document.getElementById('typePanel');
-
-            // Toggle voice mode
-            if (voiceBtn.classList.contains('input-toggle')) {
-                // Deactivate
-                voiceBtn.classList.remove('input-toggle');
-                voiceBtn.classList.add('input-toggle-inactive');
-                voicePanel.classList.add('hidden');
-            } else {
-                // Activate voice mode
-                voiceBtn.classList.add('input-toggle');
-                voiceBtn.classList.remove('input-toggle-inactive');
-                voicePanel.classList.remove('hidden');
-                // Deactivate type mode
-                textBtn.classList.remove('input-toggle');
-                textBtn.classList.add('input-toggle-inactive');
-                typePanel.classList.add('hidden');
-            }
-        });
-
-        // Step 2: Click "Tap to Speak" button
-        document.getElementById('tapToSpeakBtn').addEventListener('click', () => {
-            if (recognition) {
-                try {
-                    recognition.start();
-                    const tapBtn = document.getElementById('tapToSpeakBtn');
-                    tapBtn.innerHTML = '<span class="text-2xl">🎤</span><span>Listening...</span>';
-                    tapBtn.classList.add('listening-pulse');
-                    showResponse('🎤 Listening... speak now!');
-                } catch (error) {
-                    console.error('Recognition start error:', error);
-                    showResponse('❌ Could not start voice. Try typing instead.');
-                }
-            } else {
-                showResponse('❌ Voice not supported in this browser. Please use Chrome or type your order.');
-            }
-        });
-
-        // Step 1: Click Type Order button
-        document.getElementById('textBtn').addEventListener('click', () => {
-            const voiceBtn = document.getElementById('voiceBtn');
-            const textBtn = document.getElementById('textBtn');
-            const voicePanel = document.getElementById('voicePanel');
-            const typePanel = document.getElementById('typePanel');
-
-            // Toggle type mode
-            if (textBtn.classList.contains('input-toggle')) {
-                // Deactivate
-                textBtn.classList.remove('input-toggle');
-                textBtn.classList.add('input-toggle-inactive');
-                typePanel.classList.add('hidden');
-            } else {
-                // Activate type mode
-                textBtn.classList.add('input-toggle');
-                textBtn.classList.remove('input-toggle-inactive');
-                typePanel.classList.remove('hidden');
-                document.getElementById('orderTextInput').focus();
-                // Deactivate voice mode
-                voiceBtn.classList.remove('input-toggle');
-                voiceBtn.classList.add('input-toggle-inactive');
-                voicePanel.classList.add('hidden');
-            }
-        });
-
-        // Step 2: Click Send button or press Enter
-        document.getElementById('sendBtn').addEventListener('click', async () => {
-            const text = document.getElementById('orderTextInput').value;
-            if (text.trim()) {
-                await processOrder(text);
-                document.getElementById('orderTextInput').value = '';
-            }
-        });
-
-        document.getElementById('orderTextInput').addEventListener('keypress', async (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                const text = e.target.value;
-                if (text.trim()) {
-                    await processOrder(text);
-                    e.target.value = '';
-                }
-            }
-        });
-
-        async function processOrder(text) {
-            if (!text.trim()) return;
-            showResponse('⏳ Processing your order...');
+        function startListening() {
+            if (!isConversationActive || conversationMode !== 'voice' || !recognition) return;
+            
             try {
-                const res = await fetch(`${API_URL}/api/process-order`, {
+                recognition.start();
+                document.getElementById('tapToSpeakBtn').innerHTML = '<span class="text-2xl">🎤</span><span>Listening...</span>';
+                document.getElementById('tapToSpeakBtn').classList.add('listening-pulse');
+            } catch (error) {
+                console.error('Recognition start error:', error);
+                showResponse('❌ Could not start voice. Try typing instead.');
+            }
+        }
+
+        async function sendConversationTurn(userMessage) {
+            try {
+                showResponse('⏳ Processing...');
+                
+                const res = await fetch(`${API_URL}/api/conversation-turn`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        audioText: text,
-                        customerName: document.getElementById('customerName').value
+                        sessionId: currentSessionId,
+                        userMessage: userMessage,
+                        customerName: document.getElementById('customerName').value,
+                        mode: conversationMode
                     })
                 });
                 
                 if (!res.ok) {
                     const errorText = await res.text();
                     console.error('Server error:', res.status, errorText);
-                    showResponse(`❌ Server error (${res.status}). Check console for details.`);
+                    showResponse(`❌ Server error (${res.status}). Check console.`);
                     return;
                 }
                 
                 const data = await res.json();
-                showResponse(`✅ ${data.response}`);
-                loadCustomerOrders();
+                
+                // Display AI response text
+                showResponse(`🤖 ${data.reply}`);
+                
+                // Play audio response (only for voice mode)
+                if (conversationMode === 'voice' && data.audio) {
+                    await playAudioResponse(data.audio);
+                }
+                
+                // Check if order is complete
+                if (data.orderComplete) {
+                    isConversationActive = false;
+                    showResponse(`✅ ${data.reply}\n\nOrder #${data.orderNumber} - Total: $${data.total.toFixed(2)}`);
+                    loadCustomerOrders();
+                    currentSessionId = null;
+                    conversationMode = null;
+                    resetConversationUI();
+                } else {
+                    // Continue conversation
+                    if (conversationMode === 'voice') {
+                        setTimeout(() => {
+                            if (isConversationActive) {
+                                startListening();
+                            }
+                        }, 500);
+                    }
+                }
+                
             } catch (error) {
-                console.error('Order processing error:', error);
+                console.error('Conversation error:', error);
                 showResponse(`❌ Error: ${error.message}`);
+                isConversationActive = false;
+                resetConversationUI();
             }
         }
+
+        function resetConversationUI() {
+            const voiceBtn = document.getElementById('voiceBtn');
+            const textBtn = document.getElementById('textBtn');
+            const tapBtn = document.getElementById('tapToSpeakBtn');
+            
+            if (voiceBtn) voiceBtn.classList.remove('input-toggle');
+            if (voiceBtn) voiceBtn.classList.add('input-toggle-inactive');
+            if (textBtn) textBtn.classList.remove('input-toggle');
+            if (textBtn) textBtn.classList.add('input-toggle-inactive');
+            
+            document.getElementById('voicePanel').classList.add('hidden');
+            document.getElementById('typePanel').classList.add('hidden');
+            
+            if (tapBtn) {
+                tapBtn.innerHTML = '<span class="text-2xl">🎤</span><span>Tap to Speak</span>';
+                tapBtn.classList.remove('listening-pulse');
+            }
+        }
+
+        async function playAudioResponse(base64Audio) {
+            return new Promise((resolve) => {
+                try {
+                    const binaryString = atob(base64Audio);
+                    const bytes = new Uint8Array(binaryString.length);
+                    for (let i = 0; i < binaryString.length; i++) {
+                        bytes[i] = binaryString.charCodeAt(i);
+                    }
+                    
+                    audioContext.decodeAudioData(bytes.buffer, (buffer) => {
+                        const source = audioContext.createBufferSource();
+                        source.buffer = buffer;
+                        source.connect(audioContext.destination);
+                        source.onended = () => resolve();
+                        source.start(0);
+                    }, (error) => {
+                        console.error('Audio decode error:', error);
+                        resolve();
+                    });
+                } catch (error) {
+                    console.error('Audio playback error:', error);
+                    resolve();
+                }
+            });
+        }
+
+        // Speech recognition
+        if ('webkitSpeechRecognition' in window) {
+            recognition = new webkitSpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            
+            recognition.onresult = async (e) => {
+                const transcript = e.results[0][0].transcript;
+                
+                if (isConversationActive && conversationMode === 'voice') {
+                    await sendConversationTurn(transcript);
+                }
+            };
+            
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                showResponse(`❌ Voice error (${event.error}). ${isConversationActive ? 'Conversation paused.' : 'Try typing instead.'}`);
+                resetConversationUI();
+                isConversationActive = false;
+            };
+            
+            recognition.onend = () => {
+                const tapBtn = document.getElementById('tapToSpeakBtn');
+                if (tapBtn && !isConversationActive) {
+                    tapBtn.innerHTML = '<span class="text-2xl">🎤</span><span>Tap to Speak</span>';
+                    tapBtn.classList.remove('listening-pulse');
+                }
+            };
+        }
+
+        // Voice button
+        document.getElementById('voiceBtn').addEventListener('click', () => {
+            const voiceBtn = document.getElementById('voiceBtn');
+            const textBtn = document.getElementById('textBtn');
+            const voicePanel = document.getElementById('voicePanel');
+            const typePanel = document.getElementById('typePanel');
+
+            if (voiceBtn.classList.contains('input-toggle')) {
+                voiceBtn.classList.remove('input-toggle');
+                voiceBtn.classList.add('input-toggle-inactive');
+                voicePanel.classList.add('hidden');
+            } else {
+                voiceBtn.classList.add('input-toggle');
+                voiceBtn.classList.remove('input-toggle-inactive');
+                voicePanel.classList.remove('hidden');
+                textBtn.classList.remove('input-toggle');
+                textBtn.classList.add('input-toggle-inactive');
+                typePanel.classList.add('hidden');
+            }
+        });
+
+        // Tap to Speak button
+        document.getElementById('tapToSpeakBtn').addEventListener('click', () => {
+            if (!recognition) {
+                alert('Voice not supported. Please use Chrome or Safari.');
+                return;
+            }
+            startConversation('voice');
+        });
+
+        // Type button
+        document.getElementById('textBtn').addEventListener('click', () => {
+            const voiceBtn = document.getElementById('voiceBtn');
+            const textBtn = document.getElementById('textBtn');
+            const voicePanel = document.getElementById('voicePanel');
+            const typePanel = document.getElementById('typePanel');
+
+            if (textBtn.classList.contains('input-toggle')) {
+                textBtn.classList.remove('input-toggle');
+                textBtn.classList.add('input-toggle-inactive');
+                typePanel.classList.add('hidden');
+            } else {
+                textBtn.classList.add('input-toggle');
+                textBtn.classList.remove('input-toggle-inactive');
+                typePanel.classList.remove('hidden');
+                document.getElementById('orderTextInput').focus();
+                voiceBtn.classList.remove('input-toggle');
+                voiceBtn.classList.add('input-toggle-inactive');
+                voicePanel.classList.add('hidden');
+                
+                if (!isConversationActive) {
+                    startConversation('text');
+                }
+            }
+        });
+
+        // Send button
+        document.getElementById('sendBtn').addEventListener('click', async () => {
+            const text = document.getElementById('orderTextInput').value;
+            if (text.trim()) {
+                await sendConversationTurn(text);
+                document.getElementById('orderTextInput').value = '';
+            }
+        });
+
+        // Enter key
+        document.getElementById('orderTextInput').addEventListener('keypress', async (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const text = e.target.value;
+                if (text.trim()) {
+                    await sendConversationTurn(text);
+                    e.target.value = '';
+                }
+            }
+        });
 
         function showResponse(msg) {
             const d = document.getElementById('response');
@@ -575,12 +656,8 @@
             try {
                 const res = await fetch(`${API_URL}/api/orders`);
                 const orders = await res.json();
-                console.log('Barista - Total orders:', orders.length);
-                console.log('Barista - Sample order:', orders[0]);
                 
                 const pending = orders.filter(o => o.status === 'pending');
-                console.log('Barista - Pending orders:', pending.length);
-                console.log('Barista - Pending sample:', pending[0]);
                 
                 if (pending.length > previousPendingCount && previousPendingCount !== 0) {
                     const screen = document.getElementById('view-barista');
@@ -658,7 +735,6 @@
                 document.getElementById('totalOrders').textContent = orders.length;
                 document.getElementById('avgOrderValue').textContent = `$${(totalRevenue / orders.length).toFixed(2)}`;
 
-                // Peak Hour Analysis
                 const hourCounts = {};
                 orders.forEach(o => {
                     const h = new Date(o.timestamp).getHours();
@@ -672,11 +748,9 @@
                     document.getElementById('peakOrders').textContent = `${count} orders`;
                 }
 
-                // Customization Trends
                 const customizations = {};
                 orders.forEach(o => {
                     o.items.forEach(item => {
-                        // Extract size as customization
                         if (item.size) {
                             const key = item.size.toLowerCase();
                             customizations[key] = (customizations[key] || 0) + 1;
@@ -702,92 +776,29 @@
                         </div>`;
                 }).join('') || '<p class="text-sm text-gray-500">No customization data yet</p>';
 
-                // Week over Week (simulated with available data)
                 const today = new Date();
-                const lastWeekOrders = orders.filter(o => {
-                    const orderDate = new Date(o.timestamp);
-                    const daysAgo = (today - orderDate) / (1000 * 60 * 60 * 24);
-                    return daysAgo > 7;
-                });
                 const thisWeekOrders = orders.filter(o => {
-                    const orderDate = new Date(o.timestamp);
-                    const daysAgo = (today - orderDate) / (1000 * 60 * 60 * 24);
+                    const daysAgo = (today - new Date(o.timestamp)) / (1000 * 60 * 60 * 24);
                     return daysAgo <= 7;
                 });
-
-                const thisWeekRevenue = thisWeekOrders.reduce((s, o) => s + (o.total || 0), 0);
-                const lastWeekRevenue = lastWeekOrders.reduce((s, o) => s + (o.total || 0), 0);
-                const revenueChange = lastWeekRevenue > 0 ? (((thisWeekRevenue - lastWeekRevenue) / lastWeekRevenue) * 100).toFixed(1) : 0;
-                const ordersChange = lastWeekOrders.length > 0 ? (((thisWeekOrders.length - lastWeekOrders.length) / lastWeekOrders.length) * 100).toFixed(1) : 0;
 
                 document.getElementById('weekOverWeek').innerHTML = `
                     <div class="space-y-3">
                         <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                            <span class="text-sm font-medium text-gray-700">Revenue</span>
-                            <span class="text-sm font-bold ${revenueChange >= 0 ? 'text-green-600' : 'text-red-600'}">
-                                ${revenueChange >= 0 ? '↑' : '↓'} ${Math.abs(revenueChange)}%
-                            </span>
-                        </div>
-                        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                            <span class="text-sm font-medium text-gray-700">Orders</span>
-                            <span class="text-sm font-bold ${ordersChange >= 0 ? 'text-green-600' : 'text-red-600'}">
-                                ${ordersChange >= 0 ? '↑' : '↓'} ${Math.abs(ordersChange)}%
-                            </span>
-                        </div>
-                        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                             <span class="text-sm font-medium text-gray-700">This Week</span>
                             <span class="text-sm font-bold text-gray-900">${thisWeekOrders.length} orders</span>
-                        </div>
-                        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                            <span class="text-sm font-medium text-gray-700">Last Week</span>
-                            <span class="text-sm font-bold text-gray-900">${lastWeekOrders.length} orders</span>
                         </div>
                     </div>
                 `;
 
-                // Top sellers
                 const itemCounts = {};
                 orders.forEach(o => o.items.forEach(item => {
                     const n = `${item.size||''} ${item.item}`.trim();
                     itemCounts[n] = (itemCounts[n] || 0) + 1;
                 }));
                 const sortedItems = Object.entries(itemCounts).sort((a,b)=>b[1]-a[1]).slice(0,5);
-                const topSeller = sortedItems[0];
 
-                // AI Recommendations
-                const recommendations = [];
-                
-                // Customization recommendation
-                if (topCustomizations.length > 0) {
-                    const topCustom = topCustomizations[0];
-                    const percentage = ((topCustom[1] / totalCustomizations) * 100).toFixed(0);
-                    recommendations.push(`<strong>Inventory Focus:</strong> ${percentage}% of orders request <strong>${topCustom[0]}</strong> size. Consider increasing stock for this option.`);
-                }
-
-                // Staffing recommendation
-                if (peakHourData) {
-                    const hour = parseInt(peakHourData[0]);
-                    const hourLabel = `${hour % 12 || 12}${hour < 12 ? 'am' : 'pm'}`;
-                    recommendations.push(`<strong>Staffing:</strong> Peak hour is <strong>${hourLabel}</strong> with ${peakHourData[1]} orders. Schedule additional staff during this time.`);
-                }
-
-                // Promotion recommendation
-                if (topSeller) {
-                    recommendations.push(`<strong>Promotions:</strong> <strong>${topSeller[0]}</strong> is your best seller (${topSeller[1]} orders). Consider featuring it in marketing campaigns.`);
-                }
-
-                // Week over week insight
-                if (revenueChange > 5) {
-                    recommendations.push(`<strong>Growth:</strong> Revenue up ${revenueChange}% vs last week. Maintain current operations and consider expanding popular items.`);
-                } else if (revenueChange < -5) {
-                    recommendations.push(`<strong>Alert:</strong> Revenue down ${Math.abs(revenueChange)}% vs last week. Review menu pricing and promotional strategies.`);
-                }
-
-                document.getElementById('recommendations').innerHTML = recommendations.length > 0 
-                    ? recommendations.map(r => `<div class="flex items-start gap-2"><span class="text-blue-600 mt-0.5">•</span><p class="text-sm text-gray-700">${r}</p></div>`).join('')
-                    : '<p class="text-sm text-gray-600">Not enough data yet for recommendations. Keep serving customers!</p>';
-
-                // Top sellers with clean blue styling
+                document.getElementById('recommendations').innerHTML = '<p class="text-sm text-gray-600">Keep up the great work!</p>';
 
                 if (popularChart) popularChart.destroy();
                 popularChart = new Chart(document.getElementById('popularItemsChart'), {
@@ -820,7 +831,6 @@
                     }
                 });
 
-                // Hourly distribution with clean blue styling
                 const hours = Array.from({length:24}, (_,i)=>i);
                 const hourData = hours.map(h => hourCounts[h] || 0);
 
@@ -861,13 +871,12 @@
                     }
                 });
 
-                // Orders table with professional styling
                 document.getElementById('ordersTable').innerHTML = orders.slice(-20).reverse().map(o => `
                     <tr class="hover:bg-gray-50 transition">
                         <td class="py-4 px-6 text-sm font-medium text-gray-900">#${o.orderNumber||'N/A'}</td>
                         <td class="py-4 px-6 text-sm text-gray-900">${o.customerName}</td>
                         <td class="py-4 px-6 text-sm text-gray-600">${o.items.map(i=>`${i.size||''} ${i.item}`).join(', ')}</td>
-                        <td class="py-4 px-6 text-sm font-semibold text-gray-900">$${o.total.toFixed(2)}</td>
+                        <td class="py-4 px-6 text-sm font-semibold text-gray-900">$${(o.total||0).toFixed(2)}</td>
                         <td class="py-4 px-6">
                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${o.status==='completed'?'bg-green-100 text-green-800':'bg-yellow-100 text-yellow-800'}">
                                 ${o.status}
