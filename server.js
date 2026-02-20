@@ -134,15 +134,27 @@ MENU STRUCTURE:
 - For items WITH sizes: {"item": "latte", "size": "large", "price": 5.00}
 - For items WITHOUT sizes: {"item": "chocolate croissant", "price": 4.00}
 
-Return format:
+CRITICAL RULES:
+1. If customer requests items NOT on the menu, return EMPTY items array: {"items": [], "total": 0, "response": "I'm sorry, we don't have [item] on our menu. Is there anything else you'd like to order?"}
+2. ONLY include items that exist in the menu
+3. If ALL items are unavailable, items MUST be empty array
+
+Valid order format:
 {
-  "items": [{"item": "latte", "size": "large", "price": 5.00}, {"item": "chocolate croissant", "price": 4.00}],
-  "total": 9.00,
-  "response": "Got it! One large latte and one chocolate croissant. That'll be $9.00. Your order number is #${orderNumber}. Estimated wait: ${waitTime} minutes!"
+  "items": [{"item": "latte", "size": "large", "price": 5.00}],
+  "total": 5.00,
+  "response": "Got it! One large latte. That'll be $5.00. Your order number is #${orderNumber}. Estimated wait: ${waitTime} minutes!"
+}
+
+Unavailable item format:
+{
+  "items": [],
+  "total": 0,
+  "response": "I'm sorry, we don't have sodas on our menu. Is there anything else you'd like to order?"
 }
 
 Current menu: ${JSON.stringify(menu)}
-CRITICAL: Return ONLY valid JSON. No text before or after. Put all conversation in the "response" field. Size is OPTIONAL for pastries/food.`
+CRITICAL: Return ONLY valid JSON. No text before or after. Put all conversation in the "response" field.`
         },
         { role: "user", content: audioText }
       ],
@@ -162,7 +174,19 @@ CRITICAL: Return ONLY valid JSON. No text before or after. Put all conversation 
       }
     }
 
-    // Save to Google Sheets
+    // Check if order has valid items before saving
+    if (!orderData.items || orderData.items.length === 0 || orderData.total === 0) {
+      // Don't save empty/invalid orders to Google Sheets
+      return res.json({ 
+        response: orderData.response,
+        orderNumber: null,
+        waitTime: null,
+        items: [],
+        total: 0
+      });
+    }
+
+    // Save to Google Sheets only if order is valid
     await sheets.spreadsheets.values.append({
       spreadsheetId: process.env.GOOGLE_SHEET_ID,
       range: 'Sheet1!A:F',
