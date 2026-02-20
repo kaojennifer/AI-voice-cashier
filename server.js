@@ -168,9 +168,13 @@ RESPONSE FORMAT - Return JSON:
   "reply": "Your natural conversational response here",
   "needsMoreInfo": true/false,
   "orderComplete": false,
-  "currentItem": {item details if being built},
+  "currentItem": {item, size (optional), quantity (default 1), price},
   "action": "ask_size" | "ask_temperature" | "ask_milk" | "ask_modifications" | "add_item" | "finalize_order" | "invalid_request"
 }
+
+IMPORTANT FOR QUANTITIES:
+- If customer orders multiple of same item (e.g., "5 croissants"), include quantity in currentItem
+- When action is "add_item", currentItem should have: item, size (if applicable), quantity, price (price × quantity)
 
 EXAMPLES:
 User: "I want a latte"
@@ -180,10 +184,13 @@ User: "Large"
 Response: {"reply": "Perfect! Hot or iced?", "needsMoreInfo": true, "action": "ask_temperature", "currentItem": {"item": "latte", "size": "large"}}
 
 User: "Hot with oat milk"
-Response: {"reply": "One large hot latte with oat milk. Anything else?", "needsMoreInfo": false, "action": "add_item", "currentItem": {"item": "latte", "size": "large", "temperature": "hot", "milk": "oat"}}
+Response: {"reply": "One large hot latte with oat milk. Anything else?", "needsMoreInfo": false, "action": "add_item", "currentItem": {"item": "latte", "size": "large", "temperature": "hot", "milk": "oat", "quantity": 1, "price": 5.00}}
+
+User: "5 croissants please"
+Response: {"reply": "Got it, 5 plain croissants! Anything else?", "needsMoreInfo": false, "action": "add_item", "currentItem": {"item": "plain croissant", "quantity": 5, "price": 17.50}}
 
 User: "That's it"
-Response: {"reply": "Perfect! Your total is $5.00. I'll have that ready for you in about 3 minutes!", "needsMoreInfo": false, "orderComplete": true, "action": "finalize_order"}`;
+Response: {"reply": "Perfect! Your total is $22.50. I'll have that ready for you in about 3 minutes!", "needsMoreInfo": false, "orderComplete": true, "action": "finalize_order"}`;
 
     // Call OpenAI for conversation management
     const completion = await openai.chat.completions.create({
@@ -204,20 +211,32 @@ Response: {"reply": "Perfect! Your total is $5.00. I'll have that ready for you 
     }
     
     if (aiResponse.action === 'add_item' && state.currentItem) {
-      // Calculate price for the item
-      const itemName = state.currentItem.item.toLowerCase();
-      const size = state.currentItem.size?.toLowerCase();
+      // Use AI's price if provided, otherwise calculate from menu
+      let price = state.currentItem.price || 0;
       
-      let price = 0;
-      if (menu[itemName]) {
-        if (typeof menu[itemName] === 'number') {
-          price = menu[itemName];
-        } else if (size && menu[itemName][size]) {
-          price = menu[itemName][size];
+      // If no price provided by AI, calculate from menu
+      if (!price) {
+        const itemName = state.currentItem.item.toLowerCase();
+        const size = state.currentItem.size?.toLowerCase();
+        const quantity = state.currentItem.quantity || 1;
+        
+        let unitPrice = 0;
+        if (menu[itemName]) {
+          if (typeof menu[itemName] === 'number') {
+            unitPrice = menu[itemName];
+          } else if (size && menu[itemName][size]) {
+            unitPrice = menu[itemName][size];
+          }
         }
+        price = unitPrice * quantity;
       }
       
-      state.orderItems.push({ ...state.currentItem, price });
+      // Add item with proper quantity and price
+      state.orderItems.push({ 
+        ...state.currentItem, 
+        quantity: state.currentItem.quantity || 1,
+        price 
+      });
       state.currentItem = null;
     }
     
