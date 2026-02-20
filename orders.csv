@@ -1,0 +1,24 @@
+timestamp,customer_name,order_items,total_price,status,order_num
+2026-02-16T08:18:13.432Z,jen,"[{""item"":""latte"",""size"":""large"",""price"":4.5}]",4.5,completed,
+2026-02-16T08:19:16.164Z,jen,"[{""item"":""latte"",""size"":""large"",""price"":4.5},{""item"":""latte"",""size"":""large"",""price"":4.5}]",9,completed,
+2026-02-16T08:39:32.613Z,phil,"[{""item"":""americano"",""size"":""large"",""price"":3}]",3,completed,
+2026-02-17T06:39:29.076Z,suzie,"[{""item"":""mocha"",""size"":""iced"",""price"":4}]",4,completed,
+2026-02-17T06:39:47.747Z,suzie,"[{""item"":""iced mocha"",""size"":""large"",""price"":5},{""item"":""iced mocha"",""size"":""large"",""price"":5}]",10,completed,
+2026-02-17T06:40:31.873Z,Tom,"[{""item"":""black tea"",""size"":""regular"",""price"":2.5},{""item"":""matcha latte"",""size"":""regular"",""price"":4.5},{""item"":""plain croissant"",""price"":2}]",9,completed,
+2026-02-18T04:47:01.686Z,Guest,[],0,completed,
+2026-02-18T04:47:18.257Z,Guest,"[{""item"":""mocha"",""size"":""iced"",""price"":4},{""item"":""mocha"",""size"":""iced"",""price"":4}]",8,completed,
+2026-02-18T07:25:49.989Z,Guest,[],0,completed,
+2026-02-18T07:26:38.069Z,Guest,,,completed,
+2026-02-18T08:22:07.487Z,Kacy,[],0,completed,187
+2026-02-18T08:22:34.651Z,Kacy,[],0,completed,446
+2026-02-18T08:22:45.403Z,Kacy,[],0,completed,898
+2026-02-18T08:23:03.931Z,Kacy,"[{""item"":""latte"",""size"":""large"",""price"":4.5}]",4.5,completed,861
+2026-02-18T08:38:36.821Z,Johnny Depp,[],0,completed,897
+2026-02-18T08:46:36.762Z,Snoopy,,,completed,
+2026-02-18T08:56:01.533Z,Shakira,"[{""item"":""jasmine tea"",""size"":""hot"",""price"":3.5},{""item"":""jasmine tea"",""size"":""cold"",""price"":3.5}]",7,completed,850
+2026-02-20T04:47:52.123Z,Alysa Liu,[],0,completed,139
+2026-02-20T05:01:37.797Z,Alysa Liu,"[{""item"":""chocolate croissant"",""price"":4}]",4,pending,373
+2026-02-20T05:04:46.752Z,Beyonce ,[],0,pending,649
+2026-02-20T07:02:00.151Z,Amber,"[{""item"":""chocolate croissant"",""quantity"":2,""price"":4},{""item"":""iced black tea"",""size"":""small"",""price"":0}]",4,pending,771
+2026-02-20T07:03:58.497Z,Isabeau,"[{""item"":""jasmine tea"",""size"":""large"",""modifications"":{""ice"":""less"",""sugar"":""extra""},""price"":3.75}]",3.75,pending,551
+2026-02-20T07:03:24.600Z,Isabeau,"[{""item"":""jasmine tea"",""size"":""large"",""modifications"":{""ice"":""less"",""sugar"":""extra""},""price"":3.75}]",3.75,pending,777
