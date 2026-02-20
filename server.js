@@ -42,28 +42,39 @@ async function getMenu() {
   try {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: MENU_SHEET_ID,
-      range: 'Sheet1!A:C',
+      range: 'Sheet1!A:F',  // Read columns A through F
     });
     const rows = response.data.values || [];
     const menu = {};
+    
     for (let i = 1; i < rows.length; i++) {
-      const [item, size, price] = rows[i];
-      if (item && size && price) {
+      const [item, menuCategory, temperature, size, ounces, price] = rows[i];
+      
+      if (item && price) {
         const itemLower = item.toLowerCase().trim();
-        const sizeLower = size.toLowerCase().trim();
         const priceNum = parseFloat(price.replace('$', ''));
-        if (!menu[itemLower]) menu[itemLower] = {};
-        menu[itemLower][sizeLower] = priceNum;
+        
+        // Skip items with no price (like "Sweetness Levels", "Ice Levels")
+        if (isNaN(priceNum) || priceNum === 0) continue;
+        
+        // If no size (pastries, add-ons), treat as single-item with price
+        if (!size || size.trim() === '') {
+          menu[itemLower] = priceNum;
+        } else {
+          // If has size, structure as nested object
+          const sizeLower = size.toLowerCase().trim();
+          if (!menu[itemLower]) menu[itemLower] = {};
+          menu[itemLower][sizeLower] = priceNum;
+        }
       }
     }
+    console.log('Loaded menu:', JSON.stringify(menu, null, 2));
     return menu;
   } catch (error) {
     console.error('Error fetching menu:', error);
     return {
       "coffee": { "small": 2.50, "medium": 3.00, "large": 3.50 },
       "latte": { "small": 3.50, "medium": 4.00, "large": 4.50 },
-      "cappuccino": { "small": 3.50, "medium": 4.00, "large": 4.50 },
-      "espresso": { "single": 2.00, "double": 3.00 },
     };
   }
 }
@@ -115,15 +126,23 @@ app.post('/api/process-order', async (req, res) => {
       messages: [
         {
           role: "system",
-          content: `You are a friendly NYC coffee shop cashier. Parse customer orders and return ONLY a valid JSON object with this exact format:
+          content: `You are a friendly NYC coffee shop cashier. Parse customer orders and return ONLY a valid JSON object.
+
+MENU STRUCTURE:
+- Drinks (coffee, latte, tea, etc.) have sizes: small/large or 12oz/16oz
+- Pastries and food items don't have sizes - just the item name
+- For items WITH sizes: {"item": "latte", "size": "large", "price": 5.00}
+- For items WITHOUT sizes: {"item": "chocolate croissant", "price": 4.00}
+
+Return format:
 {
-  "items": [{"item": "latte", "size": "large", "price": 4.50}],
-  "total": 4.50,
-  "response": "Got it! One large latte. That'll be $4.50. Your order number is #${orderNumber}. Estimated wait: ${waitTime} minutes!"
+  "items": [{"item": "latte", "size": "large", "price": 5.00}, {"item": "chocolate croissant", "price": 4.00}],
+  "total": 9.00,
+  "response": "Got it! One large latte and one chocolate croissant. That'll be $9.00. Your order number is #${orderNumber}. Estimated wait: ${waitTime} minutes!"
 }
 
 Current menu: ${JSON.stringify(menu)}
-CRITICAL: Return ONLY valid JSON. No text before or after. Put all conversation in the "response" field.`
+CRITICAL: Return ONLY valid JSON. No text before or after. Put all conversation in the "response" field. Size is OPTIONAL for pastries/food.`
         },
         { role: "user", content: audioText }
       ],
